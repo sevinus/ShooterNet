@@ -22,6 +22,10 @@ public class PlayerController : MonoBehaviour {
     private CharacterController m_charController = null;
     private Animation m_animation = null;
 
+    private int m_hp = 100;
+    private bool m_isDie = false;
+    private float m_respawnTime = 3.0f;
+
     public GameObject m_bullet = null;
     public Transform m_firePos = null;
 
@@ -52,6 +56,9 @@ public class PlayerController : MonoBehaviour {
         {
             if (Input.GetMouseButtonDown(0))
             {
+                if (m_isDie == true)
+                    return;
+
                 Fire();
 
                 m_networkView.RPC("Fire", RPCMode.Others);
@@ -88,10 +95,18 @@ public class PlayerController : MonoBehaviour {
         else
         {
             Vector3 pos = m_cachedTransform.position;
-            m_cachedTransform.position = Vector3.Lerp(pos, m_curPosition, Time.deltaTime * 5.0f);
-
             Quaternion rotation = m_cachedTransform.rotation;
-            m_cachedTransform.rotation = Quaternion.Lerp(rotation, m_curRotation, Time.deltaTime * 5.0f);
+
+            if (Vector3.Distance(pos, m_curPosition) > 2.0f)
+            {
+                m_cachedTransform.position = m_curPosition;
+                m_cachedTransform.rotation = m_curRotation;
+            }
+            else
+            {
+                m_cachedTransform.position = Vector3.Lerp(pos, m_curPosition, Time.deltaTime * 5.0f);
+                m_cachedTransform.rotation = Quaternion.Lerp(rotation, m_curRotation, Time.deltaTime * 5.0f);
+            }
 
             AnimationClip clip = m_animClips[(int)m_animState];
             m_animation.CrossFade(clip.name, 0.2f);
@@ -141,6 +156,49 @@ public class PlayerController : MonoBehaviour {
         if (collider.tag == "Bullet")
         {
             Destroy(collider.gameObject);
+
+            m_hp -= 20;
+
+            if (m_hp <= 0)
+            {
+                PlayerVisible(false);
+                m_isDie = true;
+                StartCoroutine(RewspawnPlayer(m_respawnTime));
+            }
         }
+    }
+
+    void PlayerVisible(bool isVisible)
+    {
+        var body = GetComponentInChildren<SkinnedMeshRenderer>();
+        if (body == null)
+            return;
+
+        var weapon = GetComponentInChildren<MeshRenderer>();
+        if (weapon == null)
+            return;
+
+        body.enabled = isVisible;
+        weapon.enabled = isVisible;
+
+        if (m_networkView.isMine)
+        {
+            var moveController = GetComponent<MoveController>();
+            moveController.enabled = isVisible;
+            m_charController.enabled = isVisible;
+        }
+    }
+
+    IEnumerator RewspawnPlayer(float waitTime)
+    {
+        yield return new WaitForSeconds(waitTime);
+        
+        m_cachedTransform.position = new Vector3(Random.Range(-20.0f, 20.0f), 0.0f, Random.Range(-20.0f, 20.0f));
+
+        yield return new WaitForSeconds(0.5f);
+
+        m_hp = 100;
+        m_isDie = false;
+        PlayerVisible(true);
     }
 }

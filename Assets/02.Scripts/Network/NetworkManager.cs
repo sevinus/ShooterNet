@@ -59,6 +59,12 @@ public class NetworkManager : MonoBehaviour {
         CreatePlayer();
     }
 
+    void OnPlayerDisconnected(NetworkPlayer netPlayer)
+    {
+        Network.RemoveRPCs(netPlayer);
+        Network.DestroyPlayerObjects(netPlayer);
+    }
+
     void CreatePlayer()
     {
         if (m_playerPrefab == null)
